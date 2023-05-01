@@ -1,0 +1,58 @@
+<!-- Load TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<!-- Load Universal Sentence Encoder -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder"></script>
+
+<script>
+    async function loadEmbeddingsFromFile(filePath) {
+        const response = await fetch(filePath);
+        // assuming the embeddings are stored in the first key
+        return await response.json();
+    }
+
+    async function findBestResponse(question, responses) {
+        try {
+            // Load the Universal Sentence Encoder model
+            const model = await use.load();
+
+            // Preprocess the input question
+
+            // Encode the question
+            const questionEmbedding = await model.embed(question);
+
+            // Find the most relevant response
+            let bestResponse = null;
+            let bestScore = -1;
+
+            for (const key in responses) {
+                const responseEmbeddings = tf.tensor(responses[key]);
+
+                // Calculate the similarity score between the question and response embeddings
+                const similarity = questionEmbedding.dot(responseEmbeddings.transpose()).arraySync()[0][0];
+
+                if (similarity > bestScore) {
+                    bestScore = similarity;
+                    bestResponse = key;
+                }
+            }
+
+            if (bestResponse == null) {
+                console.error("Unable to find a best response");
+            } else {
+                console.log("Best response:", bestResponse);
+            }
+
+            return bestResponse;
+        } catch (error) {
+            console.error("An error occurred while finding the best response:", error);
+            return null;
+        }
+    }
+
+    // Example usage
+    const question = "replaceBy";
+
+    loadEmbeddingsFromFile("src/embeddings.json").then(responses => {
+        findBestResponse(question, responses)
+    });
+</script>
