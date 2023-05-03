@@ -1,24 +1,52 @@
+With this library, you can:
+
+* Generate USE embeddings for functions in your Javascript and Python code. The USE embeddings capture the semantic meaning of the functions, allowing you to compare them and find functions that are semantically similar.
+* Query the embeddings to find functions that can solve specific tasks. For example applied to Optimus https://github.com/hi-primus/optimus, you could search for functions that perform data processing, outlier detection and +100 data processing functions.
+* It is designed to run on the browser
+
 # How it works
+* Get functions signatures and docstrings from your code.
+You can use:
 
-Make a LLM(GPT4) create Optimus code.
+```
+cd python
+python extract.py --input path_to_file
+``` 
 
-* Use the Blurr functions and docstring to create embeddings using the tensorflow USE(Universal Sentence Encoder).
+to parse a list of python files or urls.
+
+```
+cd javascript
+npm run extract
+```
+
+* Create USE embeddings for the functions using nodeJS for both python and javascript.
+
+* `npm run create-embeddings` to create the embeddings.
+
+## Use cases 
+### Create Optimus Code to process data using NLP 
+* Parse docs and functions.
+* Create the embeddings.
 * Create a plan of what operation should be done over a column to standardize the data using LLM.
 * With a list of operations, query the embeddings to get signature of the operations and docstrings.
-* Use a LLM with the operations and the docstrings to create the Optimus code. 
-
-We are using https://arxiv.org/abs/2304.11490 to create the prompts.
+* Use a LLM with the operations and the docstrings to create the Optimus code.
 
 Below you can find the steps to create the embeddings and the prompts.
+
+## Parse the doc and functions
+
 
 ## Creating the embeddings
 
 To create the embeddings using nodejs run the following code:
-`npm run index`
+`npm run create-embeddings`
 They are create using the tensorflow USE(Universal Sentence Encoder). The embeddings are saved in the `embeddings.json`
 file.
 
 ## Prompt to create the prompt about a data engineer:
+
+We are using https://arxiv.org/abs/2304.11490 to create the prompts.
 
 ```
 I want to create a prompt like this one:
@@ -134,7 +162,7 @@ A:
 
 ## Loading the embeddings and search from the list of operations
 
-in load.html you can find a example of how to load the embeddings a make a question.
+in load.html you can find a example of how to load the embeddings an make a question.
 With the embedding loaded and the list of operations, get the function signatures to create the prompt of the operations
 returned by the LLM.
 Every operation returned by the LLM should be searched in the embeddings.
@@ -148,11 +176,7 @@ Convert this instructions:
 
 to Optimus Code. Below example of the Optimus API
 def strip(self, cols="*", chars=None, side="both", output_cols=None) -> 'DataFrameType':
-- def lower(self, cols="*", output_cols=None) -> 'DataFrameType':
-- def replace(self, cols="*", search=None, replace_by=None, search_by=None, ignore_case=False,
-output_cols=None) -> 'DataFrameType'
 - def remove_special_chars(self, cols="*", output_cols=None) -> 'DataFrameType'
-- def normalize_chars(self, cols="*", output_cols=None)
 - def capitalize(self, cols="*", output_cols=None) -> 'DataFrameType':
 
 Only return the python code. No further explanation is required
