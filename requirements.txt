@@ -1,0 +1,8 @@
+openai
+matplotlib
+plotly
+pandas
+scikit-learn
+python-dotenv
+astunparse
+protobuf==4.22.4

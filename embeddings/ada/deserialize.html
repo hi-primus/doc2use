@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protobuf Deserialization Example</title>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@6.11.2/dist/protobuf.min.js"></script>
+</head>
+<body>
+<h1>Protobuf Deserialization Example</h1>
+<script>
+    async function loadBinaryFile(url) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Error loading ${url}: ${response.statusText}`);
+        return new Uint8Array(await response.arrayBuffer());
+    }
+
+    function byteArrayToString(byteArray) {
+        let str = "";
+        for (let i = 0; i < byteArray.length; i++) {
+            if (byteArray[i] === 0) break;
+            str += String.fromCharCode(byteArray[i]);
+        }
+        return str;
+    }
+
+    async function main() {
+        // Load the protobuf definition from the JSON file
+        const root = await protobuf.load('serialize.json');
+
+        console.log("root", root)
+        // Obtain the Data message type
+        const Data = root.lookupType('Data');
+
+        // Read the binary data from the 'output.bin' file
+        const binaryData = await loadBinaryFile('output.bin');
+
+        // Deserialize the binary data into a protobuf message
+        const deserializedMessage = Data.decode(binaryData);
+
+        // Now you can access the deserialized message fields
+        console.log('Embed:', deserializedMessage.embed);
+        console.log('Fn:', deserializedMessage.fn);
+        console.log('Name:', deserializedMessage.name);
+        console.log('Doc:', deserializedMessage.doc);
+    }
+
+    main();
+</script>
+</body>
+</html>

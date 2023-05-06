@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cosine Similarity Calculation with WebGPU</title>
+</head>
+<body>
+<script type="text/javascript">
+    async function runCosineSimilarity() {
+        const embeddingUrl = 'embeddings.json';
+
+        const embeddingResponse = await fetch(embeddingUrl);
+        const embeddingData = await embeddingResponse.json();
+
+        const inputString = 'Hello world!';
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) { return; }
+
+        const device = await adapter.requestDevice();
+
+        console.log("Device Limit",device.limits)
+        // https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API#create_a_compute_pipeline
+        console.log(embeddingData)
+        const embeddingBuffer = device.createBuffer({
+            size: embeddingData.length * Float32Array.BYTES_PER_ELEMENT,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+        });
+        console.log(embeddingBuffer);
+        device.queue.writeBuffer(embeddingBuffer, 0, new Float32Array(embeddingData));
+
+        function dotProduct(v1, v2) {
+            let sum = 0;
+            for (let i = 0; i < vec1.length; i++) {
+                sum += vec1[i] * vec2[i];
+            }
+            return sum;
+        }
+
+        /**
+         * Calculates the magnitude of a vector
+         * @param v
+         * @returns {number}
+         */
+        function magnitude(v) {
+
+            const vec = new Float32Array(embeddingData.slice(v * Float32Array.BYTES_PER_ELEMENT, (v + 1) * Float32Array.BYTES_PER_ELEMENT));
+            // Print vec values to console
+            console.log(vec.buffer)
+            console.log("00000",vec)
+            let sum = 0;
+            for (let i = 0; i < vec.length; i++) {
+                sum += vec[i] * vec[i];
+            }
+            return Math.sqrt(sum);
+        }
+
+        const inputMag = magnitude(embeddingData.length - 1);
+
+        const cosineSims = [];
+        for (let i = 1; i < embeddingData.length - 1; i++) {
+            console.log(embeddingData[0].e , embeddingData[i].e)
+            const dotProd = dotProduct(embeddingData[0], embeddingData[i]);
+            const mag = magnitude(i);
+            const cosineSim = dotProd / (mag * inputMag);
+            cosineSims.push(cosineSim);
+        }
+
+        console.log(cosineSims);
+    }
+
+    runCosineSimilarity();
+</script>
+</body>
+</html>
