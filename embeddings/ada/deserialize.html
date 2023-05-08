@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protobuf Deserialization Example</title>
     <script src="https://cdn.jsdelivr.net/npm/protobufjs@6.11.2/dist/protobuf.min.js"></script>
+    <script></script>
 </head>
 <body>
 <h1>Protobuf Deserialization Example</h1>
@@ -15,14 +16,6 @@
         return new Uint8Array(await response.arrayBuffer());
     }
 
-    function byteArrayToString(byteArray) {
-        let str = "";
-        for (let i = 0; i < byteArray.length; i++) {
-            if (byteArray[i] === 0) break;
-            str += String.fromCharCode(byteArray[i]);
-        }
-        return str;
-    }
 
     async function main() {
         // Load the protobuf definition from the JSON file
@@ -38,12 +31,239 @@
         // Deserialize the binary data into a protobuf message
         const deserializedMessage = Data.decode(binaryData);
 
-        // Now you can access the deserialized message fields
-        console.log('Embed:', deserializedMessage.embed);
-        console.log('Fn:', deserializedMessage.fn);
-        console.log('Name:', deserializedMessage.name);
-        console.log('Doc:', deserializedMessage.doc);
+
+        if (!("gpu" in navigator)) {
+            console.log(
+                "WebGPU is not supported. Enable chrome://flags/#enable-unsafe-webgpu flag."
+            );
+            return;
+        }
+
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) {
+            console.log("Failed to get GPU adapter.");
+            return;
+        }
+        const device = await adapter.requestDevice();
+
+        // First Matrix
+        const numFunctions = 409
+        const embeddingNumOutput = 1536
+        let embeddingsNumRows = numFunctions;
+        let embeddingsNumCols = embeddingNumOutput;
+
+        // First Matrix
+        // const firstMatrix = new Float32Array(embeddingsNumRows * embeddingsNumCols);
+        // firstMatrix.set(deserializedMessage["embed"]);
+        //
+        const firstMatrix = new Float32Array(deserializedMessage["embed"]);
+
+
+        // Open question_embeddings.json
+        const fetchEmbeddings = await fetch("question_embedding.json")
+        const arrayBufferQ = await fetchEmbeddings.json()
+        console.log("fetchEmbeddings", arrayBufferQ)
+        const secondMatrix = new Float32Array(arrayBufferQ);
+        // secondMatrix.set(deserializedMessage["embed"].slice(0, embeddingNumOutput));
+
+        const gpuBufferFirstMatrix = device.createBuffer({
+            mappedAtCreation: true,
+            size: firstMatrix.byteLength,
+            usage: GPUBufferUsage.STORAGE
+        });
+        const arrayBufferFirstMatrix = gpuBufferFirstMatrix.getMappedRange();
+        new Float32Array(arrayBufferFirstMatrix, 0, firstMatrix.length).set(firstMatrix);
+        gpuBufferFirstMatrix.unmap();
+
+        // Second Matrix
+        const gpuBufferSecondMatrix = device.createBuffer({
+            mappedAtCreation: true,
+            size: secondMatrix.byteLength,
+            usage: GPUBufferUsage.STORAGE
+        });
+        const arrayBufferSecondMatrix = gpuBufferSecondMatrix.getMappedRange();
+        new Float32Array(arrayBufferSecondMatrix, 0, secondMatrix.length).set(secondMatrix);
+        gpuBufferSecondMatrix.unmap();
+
+        // Result Matrix
+
+        // const resultMatrixBufferSize = Float32Array.BYTES_PER_ELEMENT * (Math.ceil((2 + firstMatrix[0] * secondMatrix[0]) / 16) * 16);
+        const paddedResultMatrixSize = Math.ceil(numFunctions * 4 / 16) * 16;
+        const resultMatrixBufferSize = new Float32Array(paddedResultMatrixSize / 4).byteLength;
+
+
+        const resultMatrixBuffer = device.createBuffer({
+            size: resultMatrixBufferSize,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+        });
+
+        // Bind group layout and bind group
+
+        const bindGroupLayout = device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: {
+                        type: "read-only-storage"
+                    }
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: {
+                        type: "read-only-storage"
+                    }
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: {
+                        type: "storage"
+                    }
+                }
+            ]
+        });
+
+        const bindGroup = device.createBindGroup({
+            layout: bindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: gpuBufferFirstMatrix
+                    }
+                },
+                {
+                    binding: 1,
+                    resource: {
+                        buffer: gpuBufferSecondMatrix
+                    }
+                },
+                {
+                    binding: 2,
+                    resource: {
+                        buffer: resultMatrixBuffer
+                    }
+                }
+            ]
+        });
+
+        // Compute shader code
+        const shaderModule = device.createShaderModule({
+            code: `
+        struct MatrixA {
+            size : vec2<f32>,
+            numbers: array<f32, 409 * 1536>,
+        };
+
+        struct MatrixB {
+            size : vec2<f32>,
+            numbers: array<f32, 1536>,
+        };
+
+        struct MatrixC {
+            size : vec2<f32>,
+            numbers: array<f32, 409>,
+        }
+
+        @group(0) @binding(0) var<storage, read> firstMatrix : MatrixA;
+        @group(0) @binding(1) var<storage, read> secondMatrix : MatrixB;
+        @group(0) @binding(2) var<storage, read_write> resultMatrix : MatrixC;
+
+        @compute @workgroup_size(8, 8)
+        fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
+            // Guard against out-of-bounds work group sizes
+            if (global_id.x >= u32(firstMatrix.size.x) || global_id.y >= u32(secondMatrix.size.x)) {
+                return;
+            }
+
+            resultMatrix.size = vec2(firstMatrix.size.x, secondMatrix.size.x);
+
+            let rowA = global_id.x;
+            let rowB = global_id.y;
+            var dotProduct = 0.0;
+            var normA = 0.0;
+            var normB = 0.0;
+
+            for (var i = 0u; i < u32(firstMatrix.size.y); i = i + 1u) {
+                let a = i + rowA * u32(firstMatrix.size.y);
+                let b = i + rowB * u32(secondMatrix.size.y);
+                dotProduct = dotProduct + firstMatrix.numbers[a] * secondMatrix.numbers[b];
+                normA = normA + firstMatrix.numbers[a] * firstMatrix.numbers[a];
+                normB = normB + secondMatrix.numbers[b] * secondMatrix.numbers[b];
+            }
+
+            normA = sqrt(normA);
+            normB = sqrt(normB);
+            let cosineSimilarity = dotProduct / (normA * normB);
+
+            let index = rowA;
+            resultMatrix.numbers[index] = cosineSimilarity;
+        }`
+        });
+
+        // Pipeline setup
+        const computePipeline = device.createComputePipeline({
+            layout: device.createPipelineLayout({
+                bindGroupLayouts: [bindGroupLayout]
+            }),
+            compute: {
+                module: shaderModule,
+                entryPoint: "main"
+            }
+        });
+
+        // Commands submission
+
+        const commandEncoder = device.createCommandEncoder();
+
+        const passEncoder = commandEncoder.beginComputePass();
+        passEncoder.setPipeline(computePipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        const workgroupCountX = Math.ceil(embeddingsNumRows / 8);
+        const workgroupCountY = 1;
+        passEncoder.dispatchWorkgroups(workgroupCountX, workgroupCountY);
+        passEncoder.end();
+
+        // Get a GPU buffer for reading in an unmapped state.
+        const gpuReadBuffer = device.createBuffer({
+            size: resultMatrixBufferSize,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+        });
+
+        // Encode commands for copying buffer to buffer.
+        commandEncoder.copyBufferToBuffer(
+            resultMatrixBuffer /* source buffer */,
+            0 /* source offset */,
+            gpuReadBuffer /* destination buffer */,
+            0 /* destination offset */,
+            resultMatrixBufferSize /* size */
+        );
+
+        // Submit GPU commands.
+        console.log(Date.now())
+        const gpuCommands = commandEncoder.finish();
+
+        const startTime = performance.now();
+        device.queue.submit([gpuCommands]);
+        const endTime = performance.now();
+        const elapsedTime = endTime - startTime;
+        console.log(`GPU command execution time: ${elapsedTime} ms`);
+
+        // Read buffer.
+        await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+        const arrayBuffer = gpuReadBuffer.getMappedRange();
+
+        console.log(new Float32Array(arrayBuffer));
     }
+
+    // Now you can access the deserialized message fields
+    // console.log('Embed:', deserializedMessage.embed);
+    // console.log('Fn:', deserializedMessage.fn);
+    // console.log('Name:', deserializedMessage.name);
+    // console.log('Doc:', deserializedMessage.doc);
+
 
     main();
 </script>
