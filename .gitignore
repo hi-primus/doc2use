@@ -7,6 +7,6 @@ embeddings/ada/__pycache__
 embeddings/ada/output.bin
 embeddings/ada/serialize.json
 embeddings_*
-
+.env
 
 venv/
