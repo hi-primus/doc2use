@@ -91,14 +91,12 @@
         const paddedResultMatrixSize = Math.ceil(numFunctions * 4 / 16) * 16;
         const resultMatrixBufferSize = new Float32Array(paddedResultMatrixSize / 4).byteLength;
 
-
         const resultMatrixBuffer = device.createBuffer({
             size: resultMatrixBufferSize,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
         });
 
         // Bind group layout and bind group
-
         const bindGroupLayout = device.createBindGroupLayout({
             entries: [
                 {
@@ -242,7 +240,7 @@
         );
 
         // Submit GPU commands.
-        console.log(Date.now())
+
         const gpuCommands = commandEncoder.finish();
 
         const startTime = performance.now();
@@ -255,7 +253,12 @@
         await gpuReadBuffer.mapAsync(GPUMapMode.READ);
         const arrayBuffer = gpuReadBuffer.getMappedRange();
 
-        console.log(new Float32Array(arrayBuffer));
+        const fi = new Float32Array(arrayBuffer);
+        // Remove the first 2 elements from the array and get the max value. And get the index of the max value.
+        const maxIndex = fi.indexOf(Math.max(...fi.slice(2)));
+        const index = maxIndex - 2;
+        console.log(deserializedMessage["fn"][index],deserializedMessage["doc"][index]);
+
     }
 
     // Now you can access the deserialized message fields
