@@ -3,14 +3,36 @@
 <!-- Load Universal Sentence Encoder -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder"></script>
 
+
+<!-- Add the WebGPU backend to the global backend registry -->
+<!--<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu/dist/tf-backend-webgpu.js"></script>-->
 <script>
+    // Define the main function
+    async function main() {
+        try {
+            // Set the backend to WebGPU and wait for the module to be ready
+            // await tf.setBackend('webgpu');
+
+            // Example usage
+            const question = "Calculate min value in  a column";
+
+            const responses = await loadEmbeddingsFromFile("embeddings_use.json");
+            await findBestResponse(question, responses);
+        } catch (error) {
+            console.error("An error occurred:", error);
+        }
+    }
+
+    // Call the main function after the page has finished loading
+    window.addEventListener('load', main);
+
     async function loadEmbeddingsFromFile(filePath) {
         const response = await fetch(filePath);
         // assuming the embeddings are stored in the first key
         return await response.json();
     }
 
-    async function findBestResponse(question, responses) {
+    async function findBestResponse(task, functionsInfo) {
         try {
             // Load the Universal Sentence Encoder model
             const model = await use.load();
@@ -18,21 +40,20 @@
             // Preprocess the input question
 
             // Encode the question
-            const questionEmbedding = await model.embed(question);
-
+            const taskEmbedding = await model.embed(task);
             // Find the most relevant response
             let bestResponse = null;
             let bestScore = -1;
 
-            for (const key in responses) {
-                const responseEmbeddings = tf.tensor(responses[key]);
+            for (const functionInfo of functionsInfo) {
+                const functionEmbedding = tf.tensor(functionInfo.e);
 
                 // Calculate the similarity score between the question and response embeddings
-                const similarity = questionEmbedding.dot(responseEmbeddings.transpose()).arraySync()[0][0];
-
+                const similarity = taskEmbedding.dot(functionEmbedding.transpose()).arraySync()[0][0];
+                console.log(bestScore)
                 if (similarity > bestScore) {
                     bestScore = similarity;
-                    bestResponse = key;
+                    bestResponse = functionInfo;
                 }
             }
 
@@ -41,18 +62,11 @@
             } else {
                 console.log("Best response:", bestResponse);
             }
-
+            console.log(bestResponse)
             return bestResponse;
         } catch (error) {
             console.error("An error occurred while finding the best response:", error);
             return null;
         }
     }
-
-    // Example usage
-    const question = "replaceBy";
-
-    loadEmbeddingsFromFile("src/embeddings.json").then(responses => {
-        findBestResponse(question, responses)
-    });
 </script>

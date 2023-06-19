@@ -1,0 +1,28 @@
+{
+  "nested": {
+    "Data": {
+      "fields": {
+        "embed": {
+          "rule": "repeated",
+          "type": "double",
+          "id": 1
+        },
+        "fn": {
+          "rule": "repeated",
+          "type": "string",
+          "id": 2
+        },
+        "name": {
+          "rule": "repeated",
+          "type": "string",
+          "id": 3
+        },
+        "doc": {
+          "rule": "repeated",
+          "type": "string",
+          "id": 4
+        }
+      }
+    }
+  }
+}

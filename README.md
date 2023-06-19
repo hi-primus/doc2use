@@ -1,30 +1,75 @@
-With this library, you can:
+Generate embeddings from python and javascript function signatures and docstrings, so you can query a retrieve them to be used as tools.
+Embeddings can have a big size so we use protobuf to serialize the embeddings that you could then load in the browser to make a vector search.
 
-* Generate USE embeddings for functions in your Javascript and Python code. The USE embeddings capture the semantic meaning of the functions, allowing you to compare them and find functions that are semantically similar.
-* Query the embeddings to find functions that can solve specific tasks. For example applied to Optimus https://github.com/hi-primus/optimus, you could search for functions that perform data processing, outlier detection and +100 data processing functions.
-* It is designed to run on the browser
+Steps:
+
+* Extract the function signatures and docstrings from python and javascript code.
+* Generate USE or Ada-002 embeddings for functions from your Javascript and Python code. The  embeddings capture the semantic meaning of the functions, allowing you to compare them and find similar functions.
+* Serialize/Deserialize the embeddings using protobuf.
+* Query the embeddings using WebGPU in the browser to find functions that can solve specific tasks. 
+
 
 # How it works
-* Get functions signatures and docstrings from your code.
+## Extract functions signatures and docstrings 
+* First, extract functions signatures and docstrings from your code.
 You can use:
 
 ```
-cd python
+cd extractors/python
 python extract.py --input path_to_file
 ``` 
 
 to parse a list of python files or urls.
+Or for javascript functions:
 
 ```
-cd javascript
+cd extractors/javascript
 npm run extract
 ```
 
-* Create USE embeddings for the functions using nodeJS for both python and javascript.
+## Create embeddings.
 
-* `npm run create-embeddings` to create the embeddings.
+To create Ada-002 embeddings run:
+```
+cd embeddings/ada
+python .\embed.py --file ../../functions.json --output ../../embeddings.json
+```
+
+To create USE:
+```
+cd embeddings/use
+npm run create-embeddings 
+```
+to create the embeddings.
+
+## Serialize to ProtoBuf format.
+
+Execute :
+```
+protoc --python_out=. serialize.proto
+```
+This will create a file called `serialize_pb2.py` in the current directory.
+
+To serialize the data, run:
+```
+python .\serialize.py --file ..\embeddings.json --output embeddings.bin
+```
+
+## Deserialize
+Now you can download `embeddings.bin` and deserialize it using the following code:
+```
+npm install protobufjs
+pbjs -t json ../serialize/serialize.proto -o serialize.json
+```
+
+
+## Vector Search
+Vector Search
 
 ## Use cases 
+
+* Applied to Optimus https://github.com/hi-primus/optimus, you could search for functions that perform data processing, outlier detection and +100 data processing functions.
+
 ### Create Optimus Code to process data using NLP 
 * Parse docs and functions.
 * Create the embeddings.
@@ -41,7 +86,7 @@ Below you can find the steps to create the embeddings and the prompts.
 
 To create the embeddings using nodejs run the following code:
 `npm run create-embeddings`
-They are create using the tensorflow USE(Universal Sentence Encoder). The embeddings are saved in the `embeddings.json`
+They are create using the embedding selected.
 file.
 
 ## Prompt to create the prompt about a data engineer:

@@ -1,7 +1,7 @@
 // Import TensorFlow.js and Universal Sentence Encoder
 import * as use from "@tensorflow-models/universal-sentence-encoder";
 import "@tensorflow/tfjs-node";
-import {loadAndPreprocessResponses} from "../../extractions/javascript/utils";
+import {loadAndPreprocessResponses} from "../../extractors/javascript/utils";
 
 
 

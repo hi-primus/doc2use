@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+message Data {
+  repeated double embed = 1;
+  repeated string fn = 2;
+  repeated string name = 3;
+  repeated string doc = 4;
+}
